@@ -18,12 +18,29 @@ npm run preview # 预览构建产物
 
 ## 部署
 
-已配置 GitHub Actions 自动部署到 GitHub Pages：
+已发布到 GitHub Pages：
 
 - 仓库：https://github.com/lzz202010/luma-memo
 - 网址：https://lzz202010.github.io/luma-memo/
 
-推送 `main` 分支即触发构建发布（见 `.github/workflows/deploy.yml`）。
+发布方式是 `gh-pages` 分支：Pages 直接托管该分支里的构建产物（`.nojekyll` 已包含）。改完代码后执行：
+
+```bash
+npm run deploy   # 构建 + 推送 dist 到 gh-pages 分支
+```
+
+### 可选：推送即自动部署
+
+当前 `gh` 登录令牌缺少 `workflow` 权限，所以仓库里没放 Actions 工作流。如果想让每次 push 到 `main` 都自动构建发布：
+
+```bash
+gh auth refresh -s workflow                      # 浏览器授权一次
+mkdir -p .github/workflows
+cp docs/github-pages-workflow.yml .github/workflows/deploy.yml
+git add .github && git commit -m "ci: GitHub Actions 自动部署" && git push
+```
+
+然后到仓库 Settings → Pages，把 Source 从 “Deploy from a branch (gh-pages)” 改为 “GitHub Actions”。
 
 ### 换域名 / 换仓库名
 
