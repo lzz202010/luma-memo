@@ -1,6 +1,8 @@
-import { AiPreset, AppSettings, PromptTemplate } from '../types/memo';
+import { AiPreset, AppSettings, FontSizeOption, PromptTemplate } from '../types/memo';
 
 const SETTINGS_KEY = 'luma_memo_settings_v1';
+
+export const FONT_SIZE_OPTIONS: FontSizeOption[] = [18, 20, 22, 24, 26];
 
 export const DEFAULT_PROMPT_TEMPLATES: PromptTemplate[] = [
   {
@@ -17,6 +19,11 @@ export const DEFAULT_PROMPT_TEMPLATES: PromptTemplate[] = [
     id: 'polish',
     name: '润色提炼',
     template: '请帮我把下面这段随手记的内容提炼为核心要点，并润色得更清晰专业：\n\n{{content}}',
+  },
+  {
+    id: 'first-principles',
+    name: '第一性原理拆解',
+    template: '请从第一性原理出发，帮我拆解以下问题的本质、核心假设与最优解：\n\n{{content}}',
   },
 ];
 
@@ -60,8 +67,8 @@ export const DEFAULT_AI_PRESETS: AiPreset[] = [
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  fontSize: 18,
-  lineHeight: 1.68,
+  fontSize: 20,
+  lineHeight: 1.72,
   fontFamily: 'sans',
   theme: 'system',
   activePresetId: 'deepseek',
@@ -70,22 +77,45 @@ export const DEFAULT_SETTINGS: AppSettings = {
   promptTemplates: DEFAULT_PROMPT_TEMPLATES,
 };
 
+function normalizeFontSize(value: unknown): FontSizeOption {
+  if (typeof value === 'number') {
+    if (value <= 18) return 18;
+    if (FONT_SIZE_OPTIONS.includes(value as FontSizeOption)) {
+      return value as FontSizeOption;
+    }
+  }
+  return 20;
+}
+
 export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
+
+    let promptTemplates = DEFAULT_PROMPT_TEMPLATES;
+    if (Array.isArray(parsed.promptTemplates) && parsed.promptTemplates.length > 0) {
+      promptTemplates = parsed.promptTemplates;
+      // Ensure new built-in first-principles template is available if user hasn't explicitly deleted it from v2
+      const hasFirstPrinciples = promptTemplates.some((t) => t.id === 'first-principles');
+      if (!hasFirstPrinciples && promptTemplates.length === 3) {
+        promptTemplates = [...promptTemplates, DEFAULT_PROMPT_TEMPLATES[3]];
+      }
+    }
+
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      fontSize: normalizeFontSize(parsed.fontSize),
+      lineHeight:
+        typeof parsed.lineHeight === 'number' && parsed.lineHeight >= 1.4
+          ? parsed.lineHeight
+          : 1.72,
       aiPresets:
         Array.isArray(parsed.aiPresets) && parsed.aiPresets.length > 0
           ? parsed.aiPresets
           : DEFAULT_AI_PRESETS,
-      promptTemplates:
-        Array.isArray(parsed.promptTemplates) && parsed.promptTemplates.length > 0
-          ? parsed.promptTemplates
-          : DEFAULT_PROMPT_TEMPLATES,
+      promptTemplates,
     };
   } catch {
     return DEFAULT_SETTINGS;

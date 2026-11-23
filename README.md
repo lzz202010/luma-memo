@@ -44,12 +44,9 @@ git add .github && git commit -m "ci: GitHub Actions 自动部署" && git push
 
 ### 换域名 / 换仓库名
 
-`vite.config.ts` 里的 `PAGES_BASE` 决定资源前缀：
+`vite.config.ts` 使用 `base: './'`（相对路径），因此项目站点（`/<repo>/`）、用户站点根目录、自定义域名都通用，换仓库名或绑域名都不需要改配置。
 
-- 项目站点（`/<repo>/`）：保持 `/luma-memo/`
-- 用户站点（`<user>.github.io` 根目录）或自定义域名：改成 `/`
-
-同时 `public/manifest.webmanifest` 与 `public/sw.js` 使用相对路径 / 注册作用域推导，无需改动。
+`public/manifest.webmanifest` 与 `public/sw.js` 同样全部使用相对路径，靠注册作用域自动定位，无需改动。
 
 ## 图标
 

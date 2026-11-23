@@ -33,7 +33,7 @@ export interface AiPreset {
   systemPrompt: string;
 }
 
-export type FontSizeOption = 17 | 18 | 20 | 22 | 24;
+export type FontSizeOption = 18 | 20 | 22 | 24 | 26;
 export type FontFamilyOption = 'sans' | 'serif';
 export type ThemeOption = 'system' | 'light' | 'dark';
 

@@ -7,12 +7,12 @@ import {
   AppSettings,
   BackupPayload,
   FontFamilyOption,
-  FontSizeOption,
   Memo,
   PromptTemplate,
   ThemeOption,
 } from '../types/memo';
 import { copyText } from '../utils/clipboard';
+import { FONT_SIZE_OPTIONS } from '../utils/settings';
 import { createId } from '../utils/tags';
 
 interface SettingsSheetProps {
@@ -26,8 +26,6 @@ interface SettingsSheetProps {
 }
 
 type SettingsTab = 'appearance' | 'ai' | 'templates' | 'data';
-
-const FONT_SIZES: FontSizeOption[] = [17, 18, 20, 22, 24];
 
 export function SettingsSheet({
   open,
@@ -164,8 +162,11 @@ export function SettingsSheet({
     }
   };
 
-  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  const shortcutUrl = `${currentOrigin}/?q=`;
+  const baseAppUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}`
+      : '';
+  const shortcutUrl = `${baseAppUrl}?q=`;
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
@@ -212,9 +213,9 @@ export function SettingsSheet({
           {tab === 'appearance' && (
             <>
               <div className="setting-group">
-                <span className="setting-label">正文字号（默认 18px，告别原生小字）</span>
+                <span className="setting-label">正文字号（默认 20px，也可在顶栏随时点 A-/A+ 微调）</span>
                 <div className="segmented-row">
-                  {FONT_SIZES.map((size) => (
+                  {FONT_SIZE_OPTIONS.map((size) => (
                     <button
                       key={size}
                       type="button"
@@ -231,9 +232,9 @@ export function SettingsSheet({
                 <span className="setting-label">行高松紧</span>
                 <div className="segmented-row">
                   {[
-                    { label: '紧凑 1.5', value: 1.5 },
-                    { label: '舒适 1.68', value: 1.68 },
-                    { label: '宽松 1.85', value: 1.85 },
+                    { label: '紧凑 1.58', value: 1.58 },
+                    { label: '舒适 1.72', value: 1.72 },
+                    { label: '宽松 1.88', value: 1.88 },
                   ].map((opt) => (
                     <button
                       key={opt.value}
@@ -429,8 +430,7 @@ export function SettingsSheet({
             <>
               <div className="template-item-head">
                 <span className="setting-label">
-                  点击卡片上的模板按钮或「多选合并」时会使用默认模板，用 <code>{'{{content}}'}</code>{' '}
-                  代表笔记正文
+                  用 <code>{'{{content}}'}</code> 代表笔记正文，在卡片上可随时点小箭头切换任意模板
                 </span>
                 <button type="button" className="ai-mini-btn" onClick={addTemplate}>
                   <Plus size={14} />
@@ -541,7 +541,7 @@ export function SettingsSheet({
                     <span>{shortcutCopied ? '已复制' : '复制前缀'}</span>
                   </button>
                 </div>
-                3. 也可使用 <code>{currentOrigin}/?focus=1</code> 打开直接唤醒输入。
+                3. 也可使用 <code>{baseAppUrl}?focus=1</code> 打开直接唤醒输入。
               </div>
             </>
           )}

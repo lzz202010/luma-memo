@@ -1,31 +1,63 @@
-import { Pin, Sparkles } from 'lucide-react';
+import { CheckCircle2, CircleHelp, Pin } from 'lucide-react';
 
-export type SpecialFilter = '__all__' | '__pinned__' | '__has_ai__';
+export interface TagCount {
+  tag: string;
+  count: number;
+}
 
 interface TagFilterBarProps {
   activeFilter: string;
-  tags: string[];
+  totalCount: number;
+  unansweredCount: number;
+  answeredCount: number;
   pinnedCount: number;
-  aiCount: number;
+  tags: TagCount[];
   onSelectFilter: (filter: string) => void;
 }
 
 export function TagFilterBar({
   activeFilter,
-  tags,
+  totalCount,
+  unansweredCount,
+  answeredCount,
   pinnedCount,
-  aiCount,
+  tags,
   onSelectFilter,
 }: TagFilterBarProps) {
   return (
-    <nav className="tag-bar" aria-label="标签筛选">
+    <nav className="tag-bar" aria-label="状态与标签筛选">
       <button
         type="button"
         className={`tag-pill ${activeFilter === '__all__' ? 'active' : ''}`}
         onClick={() => onSelectFilter('__all__')}
       >
-        全部
+        <span>全部</span>
+        <span className="tag-pill-count">{totalCount}</span>
       </button>
+
+      {unansweredCount > 0 && (
+        <button
+          type="button"
+          className={`tag-pill ${activeFilter === '__unanswered__' ? 'active' : ''}`}
+          onClick={() => onSelectFilter('__unanswered__')}
+        >
+          <CircleHelp size={13} />
+          <span>待解答</span>
+          <span className="tag-pill-count">{unansweredCount}</span>
+        </button>
+      )}
+
+      {answeredCount > 0 && (
+        <button
+          type="button"
+          className={`tag-pill ${activeFilter === '__has_ai__' ? 'active' : ''}`}
+          onClick={() => onSelectFilter('__has_ai__')}
+        >
+          <CheckCircle2 size={13} />
+          <span>已解答</span>
+          <span className="tag-pill-count">{answeredCount}</span>
+        </button>
+      )}
 
       {pinnedCount > 0 && (
         <button
@@ -35,28 +67,19 @@ export function TagFilterBar({
         >
           <Pin size={13} />
           <span>已置顶</span>
+          <span className="tag-pill-count">{pinnedCount}</span>
         </button>
       )}
 
-      {aiCount > 0 && (
-        <button
-          type="button"
-          className={`tag-pill ${activeFilter === '__has_ai__' ? 'active' : ''}`}
-          onClick={() => onSelectFilter('__has_ai__')}
-        >
-          <Sparkles size={13} />
-          <span>AI 解答</span>
-        </button>
-      )}
-
-      {tags.map((tag) => (
+      {tags.map(({ tag, count }) => (
         <button
           key={tag}
           type="button"
           className={`tag-pill ${activeFilter === tag ? 'active' : ''}`}
-          onClick={() => onSelectFilter(tag)}
+          onClick={() => onSelectFilter(activeFilter === tag ? '__all__' : tag)}
         >
-          #{tag}
+          <span>#{tag}</span>
+          <span className="tag-pill-count">{count}</span>
         </button>
       ))}
     </nav>

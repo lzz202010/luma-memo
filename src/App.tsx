@@ -4,15 +4,25 @@ import { Composer, loadDraft, saveDraft } from './components/Composer';
 import { Header } from './components/Header';
 import { MemoCard } from './components/MemoCard';
 import { SettingsSheet } from './components/SettingsSheet';
-import { TagFilterBar } from './components/TagFilterBar';
+import { TagCount, TagFilterBar } from './components/TagFilterBar';
 import { Toast } from './components/Toast';
 import { bulkPutMemos, deleteMemoById, getAllMemos, putMemo, sortMemos } from './db/memoDb';
 import { useVisualViewport } from './hooks/useVisualViewport';
 import { ChatTurn, streamChatCompletion } from './services/aiClient';
-import { AiMessage, AppSettings, Memo } from './types/memo';
+import { AiMessage, AppSettings, Memo, PromptTemplate, ThemeOption } from './types/memo';
 import { applyPromptTemplate, copyText, formatMultiMemoCopy } from './utils/clipboard';
-import { loadSettings, saveSettings } from './utils/settings';
+import { FONT_SIZE_OPTIONS, loadSettings, saveSettings } from './utils/settings';
 import { createId, extractTags } from './utils/tags';
+
+function isQuestionUnanswered(memo: Memo): boolean {
+  const hasAnswer = memo.aiThread.some((m) => m.role === 'assistant' && !m.error);
+  if (hasAnswer) return false;
+  return memo.tags.includes('问题') || memo.tags.includes('待问AI');
+}
+
+function isMemoAnswered(memo: Memo): boolean {
+  return memo.aiThread.some((m) => m.role === 'assistant' && !m.error);
+}
 
 export function App() {
   const [memos, setMemos] = useState<Memo[]>([]);
@@ -31,10 +41,8 @@ export function App() {
 
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const toastTimerRef = useRef<number | null>(null);
-  const memosRef = useRef<Memo[]>([]);
-  memosRef.current = memos;
 
-  const { keyboardOpen } = useVisualViewport();
+  useVisualViewport();
 
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -43,10 +51,10 @@ export function App() {
     }
     toastTimerRef.current = window.setTimeout(() => {
       setToastMsg(null);
-    }, 2000);
+    }, 2200);
   }, []);
 
-  // Apply theme, typography tokens, and iOS theme-color meta
+  // Apply theme and typography tokens
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--memo-font-size', `${settings.fontSize}px`);
@@ -71,6 +79,31 @@ export function App() {
     setSettings(next);
     saveSettings(next);
   }, []);
+
+  const handleStepFontSize = useCallback(
+    (delta: -1 | 1) => {
+      const idx = FONT_SIZE_OPTIONS.indexOf(settings.fontSize);
+      const nextIdx = Math.max(0, Math.min(FONT_SIZE_OPTIONS.length - 1, idx + delta));
+      const nextSize = FONT_SIZE_OPTIONS[nextIdx];
+      if (nextSize !== settings.fontSize) {
+        handleUpdateSettings({ ...settings, fontSize: nextSize });
+        showToast(`正文字号：${nextSize}px`);
+      }
+    },
+    [handleUpdateSettings, settings, showToast]
+  );
+
+  const handleCycleTheme = useCallback(() => {
+    const order: ThemeOption[] = ['system', 'light', 'dark'];
+    const labels: Record<ThemeOption, string> = {
+      system: '跟随系统',
+      light: '暖纸浅色',
+      dark: '夜读深色',
+    };
+    const next = order[(order.indexOf(settings.theme) + 1) % order.length];
+    handleUpdateSettings({ ...settings, theme: next });
+    showToast(`主题：${labels[next]}`);
+  }, [handleUpdateSettings, settings, showToast]);
 
   const handleDraftChange = useCallback((val: string) => {
     setDraft(val);
@@ -134,7 +167,7 @@ export function App() {
     [settings.aiPresets, settings.activePresetId]
   );
 
-  const allTags = useMemo(() => {
+  const allTags: TagCount[] = useMemo(() => {
     const counts = new Map<string, number>();
     for (const memo of memos) {
       for (const tag of memo.tags) {
@@ -143,21 +176,27 @@ export function App() {
     }
     return Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1])
-      .map(([tag]) => tag);
+      .map(([tag, count]) => ({ tag, count }));
   }, [memos]);
 
+  const unansweredCount = useMemo(
+    () => memos.filter(isQuestionUnanswered).length,
+    [memos]
+  );
+  const answeredCount = useMemo(() => memos.filter(isMemoAnswered).length, [memos]);
   const pinnedCount = useMemo(() => memos.filter((m) => m.pinned).length, [memos]);
-  const aiCount = useMemo(() => memos.filter((m) => m.aiThread.length > 0).length, [memos]);
 
   const filteredMemos = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return memos.filter((m) => {
+      if (activeFilter === '__unanswered__' && !isQuestionUnanswered(m)) return false;
+      if (activeFilter === '__has_ai__' && !isMemoAnswered(m)) return false;
       if (activeFilter === '__pinned__' && !m.pinned) return false;
-      if (activeFilter === '__has_ai__' && m.aiThread.length === 0) return false;
       if (
         activeFilter !== '__all__' &&
-        activeFilter !== '__pinned__' &&
+        activeFilter !== '__unanswered__' &&
         activeFilter !== '__has_ai__' &&
+        activeFilter !== '__pinned__' &&
         !m.tags.includes(activeFilter)
       ) {
         return false;
@@ -171,24 +210,46 @@ export function App() {
     });
   }, [memos, activeFilter, searchQuery]);
 
-  const handleCreateMemo = useCallback(
+  const handleCreateMemo = useCallback(async (text: string) => {
+    const now = Date.now();
+    const newMemo: Memo = {
+      id: createId('m'),
+      content: text,
+      tags: extractTags(text),
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+      aiThread: [],
+      aiCollapsed: false,
+    };
+    setMemos((prev) => sortMemos([newMemo, ...prev]));
+    await putMemo(newMemo);
+    return newMemo;
+  }, []);
+
+  const handleSubmitOnly = useCallback(
     async (text: string) => {
-      const now = Date.now();
-      const newMemo: Memo = {
-        id: createId('m'),
-        content: text,
-        tags: extractTags(text),
-        pinned: false,
-        createdAt: now,
-        updatedAt: now,
-        aiThread: [],
-        aiCollapsed: false,
-      };
-      setMemos((prev) => sortMemos([newMemo, ...prev]));
-      await putMemo(newMemo);
-      return newMemo;
+      await handleCreateMemo(text);
+      showToast('已存入灵感卡片');
     },
-    []
+    [handleCreateMemo, showToast]
+  );
+
+  const handleSubmitAndCopy = useCallback(
+    async (text: string, templateId: string | null) => {
+      await handleCreateMemo(text);
+      if (templateId === null) {
+        const ok = await copyText(text);
+        showToast(ok ? '已存入并复制原文' : '已存入，但复制被系统拦截');
+      } else {
+        const tpl =
+          settings.promptTemplates.find((t) => t.id === templateId) || activeTemplate;
+        const formatted = applyPromptTemplate(tpl.template, text);
+        const ok = await copyText(formatted);
+        showToast(ok ? `已存入并按「${tpl.name}」复制` : '已存入，但复制被系统拦截');
+      }
+    },
+    [activeTemplate, handleCreateMemo, settings.promptTemplates, showToast]
   );
 
   const handleUpdateMemo = useCallback(async (id: string, newContent: string) => {
@@ -212,21 +273,27 @@ export function App() {
     }
   }, []);
 
-  const handleTogglePin = useCallback(async (id: string) => {
-    let updatedTarget: Memo | null = null;
-    setMemos((prev) =>
-      sortMemos(
-        prev.map((m) => {
-          if (m.id !== id) return m;
-          updatedTarget = { ...m, pinned: !m.pinned, updatedAt: Date.now() };
-          return updatedTarget;
-        })
-      )
-    );
-    if (updatedTarget) {
-      await putMemo(updatedTarget);
-    }
-  }, []);
+  const handleTogglePin = useCallback(
+    async (id: string) => {
+      let updatedTarget: Memo | null = null;
+      let nextPinned = false;
+      setMemos((prev) =>
+        sortMemos(
+          prev.map((m) => {
+            if (m.id !== id) return m;
+            nextPinned = !m.pinned;
+            updatedTarget = { ...m, pinned: nextPinned, updatedAt: Date.now() };
+            return updatedTarget;
+          })
+        )
+      );
+      if (updatedTarget) {
+        await putMemo(updatedTarget);
+        showToast(nextPinned ? '已置顶' : '已取消置顶');
+      }
+    },
+    [showToast]
+  );
 
   const handleDeleteMemo = useCallback(
     async (id: string) => {
@@ -254,12 +321,12 @@ export function App() {
     [handleCopyText]
   );
 
-  const handleCopyTemplate = useCallback(
-    (memo: Memo) => {
-      const formatted = applyPromptTemplate(activeTemplate.template, memo.content);
-      return handleCopyText(formatted, `已按「${activeTemplate.name}」模板复制`);
+  const handleCopyWithTemplate = useCallback(
+    (memo: Memo, template: PromptTemplate) => {
+      const formatted = applyPromptTemplate(template.template, memo.content);
+      return handleCopyText(formatted, `已按「${template.name}」模板复制`);
     },
-    [activeTemplate, handleCopyText]
+    [handleCopyText]
   );
 
   const runAiStream = useCallback(
@@ -367,7 +434,7 @@ export function App() {
       const nextBaseThread = [...memo.aiThread, userMsg];
       const nextThreadWithPlaceholder = [...nextBaseThread, assistantMsg];
 
-      let updatedMemo: Memo = {
+      const updatedMemo: Memo = {
         ...memo,
         aiCollapsed: false,
         aiThread: nextThreadWithPlaceholder,
@@ -380,11 +447,51 @@ export function App() {
     [activePreset.model, runAiStream, streamingIds]
   );
 
+  const handleAttachManualAnswer = useCallback(
+    async (memoId: string, answerText: string) => {
+      let updatedTarget: Memo | null = null;
+      setMemos((prev) =>
+        prev.map((m) => {
+          if (m.id !== memoId) return m;
+          const baseThread =
+            m.aiThread.length > 0
+              ? m.aiThread
+              : [
+                  {
+                    id: createId('u'),
+                    role: 'user' as const,
+                    content: m.content,
+                    createdAt: m.createdAt,
+                  },
+                ];
+          const manualMsg: AiMessage = {
+            id: createId('a'),
+            role: 'assistant',
+            content: answerText,
+            createdAt: Date.now(),
+            model: '外部 AI 贴入',
+          };
+          updatedTarget = {
+            ...m,
+            aiCollapsed: false,
+            updatedAt: Date.now(),
+            aiThread: [...baseThread, manualMsg],
+          };
+          return updatedTarget;
+        })
+      );
+      if (updatedTarget) {
+        await putMemo(updatedTarget);
+        showToast('已保存外部 AI 解答');
+      }
+    },
+    [showToast]
+  );
+
   const handleRegenerateAi = useCallback(
     async (memo: Memo) => {
       if (streamingIds[memo.id]) return;
 
-      // Drop trailing assistant message if present, keep user prompts
       let trimmed = [...memo.aiThread];
       if (trimmed.length > 0 && trimmed[trimmed.length - 1].role === 'assistant') {
         trimmed = trimmed.slice(0, -1);
@@ -498,11 +605,17 @@ export function App() {
 
   return (
     <div className="app-shell">
+      <div className="paper-grain" aria-hidden="true" />
+
       <Header
         totalCount={memos.length}
+        fontSize={settings.fontSize}
+        theme={settings.theme}
         searchOpen={searchOpen}
         searchQuery={searchQuery}
         multiSelectMode={multiSelectMode}
+        onStepFontSize={handleStepFontSize}
+        onCycleTheme={handleCycleTheme}
         onToggleSearch={() => {
           setSearchOpen((v) => {
             if (v) setSearchQuery('');
@@ -517,70 +630,79 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <TagFilterBar
-        activeFilter={activeFilter}
-        tags={allTags}
-        pinnedCount={pinnedCount}
-        aiCount={aiCount}
-        onSelectFilter={setActiveFilter}
-      />
+      <div className="content-column">
+        <Composer
+          draft={draft}
+          promptTemplates={settings.promptTemplates}
+          activeTemplateId={settings.activeTemplateId}
+          shouldFocus={shouldFocusComposer}
+          multiSelectMode={multiSelectMode}
+          selectedCount={selectedIds.length}
+          activeTemplateName={activeTemplate.name}
+          onDraftChange={handleDraftChange}
+          onSubmit={handleSubmitOnly}
+          onSubmitAndCopy={handleSubmitAndCopy}
+          onMultiCopyRaw={handleMultiCopyRaw}
+          onMultiCopyTemplate={handleMultiCopyTemplate}
+          onMultiAskAi={handleMultiAskAi}
+          onCancelMultiSelect={() => {
+            setMultiSelectMode(false);
+            setSelectedIds([]);
+          }}
+          onShowToast={showToast}
+        />
 
-      <main className="memo-feed">
-        {!loaded ? null : filteredMemos.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">
-              <Sparkles size={24} />
+        <TagFilterBar
+          activeFilter={activeFilter}
+          totalCount={memos.length}
+          unansweredCount={unansweredCount}
+          answeredCount={answeredCount}
+          pinnedCount={pinnedCount}
+          tags={allTags}
+          onSelectFilter={setActiveFilter}
+        />
+
+        <main className="memo-feed">
+          {!loaded ? null : filteredMemos.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <Sparkles size={24} />
+              </div>
+              <h3>{searchQuery || activeFilter !== '__all__' ? '没有匹配的灵感' : '灵感手札还空着'}</h3>
+              <p>
+                {searchQuery || activeFilter !== '__all__'
+                  ? '试试切换上方筛选标签，或清空搜索关键词'
+                  : '在上方宽敞的画布里写下你的问题或灵感，点「存入并复制」即可一键粘贴去问 AI。'}
+              </p>
             </div>
-            <h3>{searchQuery || activeFilter !== '__all__' ? '没有匹配的灵感' : '灵感画布还空着'}</h3>
-            <p>
-              {searchQuery || activeFilter !== '__all__'
-                ? '试试切换标签或清空搜索关键词'
-                : '直接在下方输入你的问题或灵感，支持一键复制给 AI 或卡片内直接提问。'}
-            </p>
-          </div>
-        ) : (
-          filteredMemos.map((memo) => (
-            <MemoCard
-              key={memo.id}
-              memo={memo}
-              activeTemplateName={activeTemplate.name}
-              multiSelectMode={multiSelectMode}
-              selected={selectedIds.includes(memo.id)}
-              isStreaming={Boolean(streamingIds[memo.id])}
-              onToggleSelect={toggleSelectId}
-              onCopyRaw={handleCopyRaw}
-              onCopyTemplate={handleCopyTemplate}
-              onCopyText={handleCopyText}
-              onAskAi={handleAskAi}
-              onRegenerateAi={handleRegenerateAi}
-              onStopAi={handleStopAi}
-              onToggleAiCollapse={handleToggleAiCollapse}
-              onUpdateMemo={handleUpdateMemo}
-              onTogglePin={handleTogglePin}
-              onDeleteMemo={handleDeleteMemo}
-              onTagClick={(tag) => setActiveFilter((prev) => (prev === tag ? '__all__' : tag))}
-            />
-          ))
-        )}
-      </main>
-
-      <Composer
-        draft={draft}
-        onDraftChange={handleDraftChange}
-        onSubmit={handleCreateMemo}
-        keyboardOpen={keyboardOpen}
-        shouldFocus={shouldFocusComposer}
-        multiSelectMode={multiSelectMode}
-        selectedCount={selectedIds.length}
-        activeTemplateName={activeTemplate.name}
-        onMultiCopyRaw={handleMultiCopyRaw}
-        onMultiCopyTemplate={handleMultiCopyTemplate}
-        onMultiAskAi={handleMultiAskAi}
-        onCancelMultiSelect={() => {
-          setMultiSelectMode(false);
-          setSelectedIds([]);
-        }}
-      />
+          ) : (
+            filteredMemos.map((memo) => (
+              <MemoCard
+                key={memo.id}
+                memo={memo}
+                promptTemplates={settings.promptTemplates}
+                activeTemplate={activeTemplate}
+                multiSelectMode={multiSelectMode}
+                selected={selectedIds.includes(memo.id)}
+                isStreaming={Boolean(streamingIds[memo.id])}
+                onToggleSelect={toggleSelectId}
+                onCopyRaw={handleCopyRaw}
+                onCopyWithTemplate={handleCopyWithTemplate}
+                onCopyText={handleCopyText}
+                onAskAi={handleAskAi}
+                onAttachManualAnswer={handleAttachManualAnswer}
+                onRegenerateAi={handleRegenerateAi}
+                onStopAi={handleStopAi}
+                onToggleAiCollapse={handleToggleAiCollapse}
+                onUpdateMemo={handleUpdateMemo}
+                onTogglePin={handleTogglePin}
+                onDeleteMemo={handleDeleteMemo}
+                onTagClick={(tag) => setActiveFilter((prev) => (prev === tag ? '__all__' : tag))}
+              />
+            ))
+          )}
+        </main>
+      </div>
 
       <SettingsSheet
         open={settingsOpen}

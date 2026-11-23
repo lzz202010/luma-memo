@@ -1,14 +1,10 @@
-// 拾光 · 灵感备忘录 — service worker
-// 部署在 GitHub Pages 子路径 /luma-memo/ 下，因此所有路径都基于注册作用域推导。
-const CACHE_VERSION = 'v2';
-const BASE = new URL(self.registration.scope).pathname; // 形如 /luma-memo/，始终以 / 结尾
-const CACHE_NAME = `luma-memo-shell-${CACHE_VERSION}`;
+const CACHE_NAME = 'luma-memo-shell-v3';
 const SHELL_ASSETS = [
-  BASE,
-  `${BASE}index.html`,
-  `${BASE}manifest.webmanifest`,
-  `${BASE}icon.svg`,
-  `${BASE}icons/icon-192.png`,
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './icon.svg',
+  './icons/icon-192.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -36,7 +32,7 @@ self.addEventListener('fetch', (event) => {
   // Never intercept cross-origin requests (e.g. AI API endpoints or Ollama)
   if (url.origin !== self.location.origin) return;
 
-  // Navigation requests: network-first with shell fallback
+  // Navigation requests: network-first with relative shell fallback
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -47,7 +43,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match(`${BASE}index.html`).then((cached) => cached || caches.match(BASE)))
+        .catch(() => caches.match('./index.html'))
     );
     return;
   }
