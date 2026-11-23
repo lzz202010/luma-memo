@@ -1,0 +1,77 @@
+:root {
+  --app-height: 100dvh;
+
+  /* Typography defaults (updated dynamically by AppSettings) */
+  --memo-font-size: 18px;
+  --memo-line-height: 1.68;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+  --font-serif: "Songti SC", "STSong", "Noto Serif SC", "Georgia", serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  --memo-font-family: var(--font-sans);
+
+  /* Light theme: Warm Paper Editorial */
+  --bg-page: #f7f5f0;
+  --bg-elevated: #ffffff;
+  --bg-subtle: #efece4;
+  --bg-hover: #e7e2d7;
+  --bg-glass: rgba(247, 245, 240, 0.86);
+  --bg-ai-panel: #faf8f3;
+
+  --text-primary: #24221f;
+  --text-secondary: #686259;
+  --text-muted: #9b9387;
+
+  --accent: #b85d3b;
+  --accent-soft: rgba(184, 93, 59, 0.11);
+  --accent-strong: #9e4a2b;
+  --accent-ink: #ffffff;
+
+  --border-subtle: rgba(36, 34, 31, 0.08);
+  --border-medium: rgba(36, 34, 31, 0.15);
+
+  --shadow-card: 0 1px 2px rgba(36, 34, 31, 0.04), 0 6px 18px rgba(36, 34, 31, 0.035);
+  --shadow-composer: 0 -4px 20px rgba(36, 34, 31, 0.06);
+  --shadow-sheet: 0 -10px 36px rgba(22, 21, 19, 0.16);
+
+  --danger: #c44536;
+  --danger-soft: rgba(196, 69, 54, 0.1);
+  --success: #2f7d57;
+  --success-soft: rgba(47, 125, 87, 0.12);
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+}
+
+[data-theme='dark'] {
+  /* Dark theme: Warm Charcoal Night Reading */
+  --bg-page: #161513;
+  --bg-elevated: #211f1c;
+  --bg-subtle: #2b2824;
+  --bg-hover: #35312c;
+  --bg-glass: rgba(22, 21, 19, 0.86);
+  --bg-ai-panel: #1b1917;
+
+  --text-primary: #eae5dc;
+  --text-secondary: #a8a095;
+  --text-muted: #756e64;
+
+  --accent: #d97a54;
+  --accent-soft: rgba(217, 122, 84, 0.15);
+  --accent-strong: #e88e6a;
+  --accent-ink: #161513;
+
+  --border-subtle: rgba(234, 229, 220, 0.08);
+  --border-medium: rgba(234, 229, 220, 0.16);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 20px rgba(0, 0, 0, 0.2);
+  --shadow-composer: 0 -4px 22px rgba(0, 0, 0, 0.35);
+  --shadow-sheet: 0 -12px 40px rgba(0, 0, 0, 0.5);
+
+  --danger: #e06b5c;
+  --danger-soft: rgba(224, 107, 92, 0.15);
+  --success: #52a97e;
+  --success-soft: rgba(82, 169, 126, 0.16);
+}
