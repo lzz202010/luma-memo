@@ -1,15 +1,13 @@
 {
   "name": "拾光 · 灵感备忘录",
   "short_name": "拾光",
-  "description": "适配 iOS Safari 的极简大字号灵感备忘录，一键复制问 AI，支持本地直连 AI",
-  "lang": "zh-CN",
-  "id": "./",
+  "description": "适配 iOS Safari 的高质感大字号灵感手札，一键复制问 AI，支持本地直连 AI",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#F7F5F0",
-  "theme_color": "#F7F5F0",
+  "background_color": "#F6F3EC",
+  "theme_color": "#F6F3EC",
   "icons": [
     {
       "src": "./icons/icon-192.png",
