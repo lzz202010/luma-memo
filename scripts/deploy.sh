@@ -32,4 +32,4 @@ git commit -q -m "deploy: $(date '+%Y-%m-%d %H:%M:%S')"
 git push --force "$REMOTE" "$BRANCH"
 
 cd "$ROOT"
-echo "✓ 已发布到 https://lzz202010.github.io/luma-memo/ （分支 $BRANCH）"
+echo "✓ 已发布到 https://lzz202010.github.io/luma-memo/ （分支 ${BRANCH}）"
